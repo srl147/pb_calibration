@@ -276,6 +276,11 @@ parse_bam_alignments(
             i, bam->core.l_qseq, name);
     }
 
+    if (BAM_FDUP & bam->core.flag) {
+        for (i = 0 ; i < bam->core.l_qseq; i++)
+          read_mismatch[i] |= BASE_DUPLICATE;
+    }
+
     if (BAM_FREVERSE & bam->core.flag) {
         read_seq = reverse_seq(read_seq);
         read_seq = complement_seq(read_seq);

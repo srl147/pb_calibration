@@ -105,6 +105,7 @@
 #define REGION_STATE_MASK  (REGION_STATE_INSERTION | REGION_STATE_DELETION)  // region mask used to filter reads
 
 enum images { IMAGE_COVERAGE,
+              IMAGE_DUPLICATE,
               IMAGE_DELETION,
               IMAGE_INSERTION,
               IMAGE_MISMATCH,
@@ -112,6 +113,7 @@ enum images { IMAGE_COVERAGE,
               N_IMAGES };
 
 char *image_names[] = {"cov",
+                       "dup",
                        "del",
                        "ins",
                        "mma",
@@ -231,6 +233,7 @@ char *append_int(char *cp, int i) {
 
 void initialiseRegionTable(RegionTable *rt) {
     rt->align     = 0;
+    rt->duplicate = 0;
     rt->mismatch  = 0;
     rt->insertion = 0;
     rt->deletion  = 0;
@@ -351,7 +354,7 @@ static void report(Settings *s, int ntiles)
     fprintf(fp, "  <h4>Summary</h4>\n");
     fprintf(fp, "  <table>\n");
     fprintf(fp, "    <tr>\n");
-    for (image=0; image<N_IMAGES; image++) {
+    for (image=IMAGE_COVERAGE; image<N_IMAGES; image++) {
         for (read = 0; read < N_READS; read++) {
             if (0 == s->read_length[read]) continue;
             sprintf(filename, "%s/%c_%s.png", base, (read == 2 ? 'R' : 'F'), image_names[image]);
@@ -370,7 +373,7 @@ static void report(Settings *s, int ntiles)
         fprintf(fp, "  <table>\n");
         fprintf(fp, "    <tr>\n");
         for (cycle = 0; cycle < s->read_length[read]; cycle++) {
-            for (image=1; image<N_IMAGES; image++) {
+            for (image=IMAGE_DELETION; image<N_IMAGES; image++) {
 	            fprintf(fp, (image ==(N_IMAGES-1) ? "      <td style=\"padding-right:10px;\">" : "      <td>"));
                 sprintf(filename, "%s/%0*d%c_%s.png", base, length, cycle+1, (read == 2 ? 'R' : 'F'), image_names[image]);
 	            fprintf(fp, "<img src=\"%s\" /></td>\n", filename);
@@ -454,6 +457,7 @@ static void tileviz(Settings *s, int ntiles, RegionTable ***rts)
         if (0 == s->read_length[read]) continue;
 
         im[IMAGE_COVERAGE]  = initImage(image_width, image_height, base, IMAGE_COVERAGE,  read, -1, 0);
+        im[IMAGE_DUPLICATE] = initImage(image_width, image_height, base, IMAGE_DUPLICATE, read, -1, 0);
         im[IMAGE_DELETION]  = initImage(image_width, image_height, base, IMAGE_DELETION,  read, -1, 0);
         im[IMAGE_INSERTION] = initImage(image_width, image_height, base, IMAGE_INSERTION, read, -1, 0);
         im[IMAGE_MISMATCH]  = initImage(image_width, image_height, base, IMAGE_MISMATCH,  read, -1, 0);
@@ -485,8 +489,9 @@ static void tileviz(Settings *s, int ntiles, RegionTable ***rts)
                             RegionTable *rt = rts[itile*N_READS+read][cycle] + s->regions[iregion];
                             int n = rt->align + rt->insertion + rt->deletion + rt->soft_clip + rt->known_snp;
                             if (0 == n) continue;
-                            // coverage should be the same for all cycles
+                            // coverage and duplicate should be the same for all cycles
                             summary_rt.align = n;
+                            summary_rt.duplicate = rt->duplicate;
                             // for quality values calculate an average value
                             rt->quality /= n;
                             // ignore the last cycle of any read which has a higher error rate and lower quality values
@@ -510,7 +515,9 @@ static void tileviz(Settings *s, int ntiles, RegionTable ***rts)
                             // mark bad regions with COLOUR_QC_FAIL in coverage image
                             if (summary_rt.state & REGION_STATE_BAD) colour = COLOUR_QC_FAIL;
                             gdImageSetPixel(im[IMAGE_COVERAGE],  x, y, colour_table[colour]);
-                            // for mismatch, insertion and deletion convert to a percentage and bin 0(<=0), 1(<=10), 2(<=20), ...
+                            // for duplicate, mismatch, insertion and deletion convert to a percentage and bin 0(<=0), 1(<=10), 2(<=20), ...
+                            colour = (10.0 * summary_rt.duplicate) / n + (summary_rt.duplicate ? 1 : 0);
+                            gdImageSetPixel(im[IMAGE_DUPLICATE], x, y, colour_table[colour]);
                             colour = (10.0 * summary_rt.deletion) / n + (summary_rt.deletion ? 1 : 0);
                             gdImageSetPixel(im[IMAGE_DELETION],  x, y, colour_table[colour]);
                             colour = (10.0 * summary_rt.insertion) / n + (summary_rt.insertion ? 1 : 0);
@@ -536,7 +543,7 @@ static void tileviz(Settings *s, int ntiles, RegionTable ***rts)
             }
         }
 
-        for (image=0; image<N_IMAGES; image++) {
+        for (image=IMAGE_COVERAGE; image<N_IMAGES; image++) {
             sprintf(filename, "%s/%c_%s.png", s->tileviz, (read == 2 ? 'R' : 'F'), image_names[image]);
             fp = fopen(filename, "w+");
             if (!fp) die("Can't open tileviz file %s: %s\n", filename, strerror(errno));
@@ -605,7 +612,7 @@ static void tileviz(Settings *s, int ntiles, RegionTable ***rts)
                 }
             }
             
-            for (image=1; image<N_IMAGES; image++) {
+            for (image=IMAGE_DELETION; image<N_IMAGES; image++) {
                 sprintf(filename, "%s/%0*d%c_%s.png", s->tileviz, length, cycle+1, (read == 2 ? 'R' : 'F'), image_names[image]);
                 fp = fopen(filename, "w+");
                 if (!fp) die("Can't open tileviz file %s: %s\n", filename, strerror(errno));
@@ -746,6 +753,7 @@ static void setRegionState(Settings *s, int ntiles, size_t nreads, RegionTable *
                             if (s->regions[iregion] >= 0) {
                                 RegionTable *rt = rts[itile*N_READS+read][cycle] + s->regions[iregion];
                                 state_rt->align     += rt->align;
+                                state_rt->duplicate += rt->duplicate;
                                 state_rt->mismatch  += rt->mismatch;
                                 state_rt->insertion += rt->insertion;
                                 state_rt->deletion  += rt->deletion;
@@ -1018,6 +1026,7 @@ static void updateRegionTable(Settings *s, RegionTable ***rts, int read, int ire
             rt->known_snp++;
         } else {
             if (read_mismatch[cycle] & BASE_ALIGN) rt->align++;
+            if (read_mismatch[cycle] & BASE_DUPLICATE) rt->duplicate++;
             if (read_mismatch[cycle] & BASE_MISMATCH) rt->mismatch++;
         }
         rt->quality += read_qual[cycle];

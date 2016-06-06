@@ -42,6 +42,7 @@ typedef struct {
 // An internal structure used to create the filter file
 typedef struct {
         int align;
+        int duplicate;
         int mismatch;
         int insertion;
         int deletion;

@@ -4,6 +4,7 @@
 #define BASE_DELETION   (1<<3)
 #define BASE_SOFT_CLIP  (1<<4)
 #define BASE_KNOWN_SNP  (1<<5)
+#define BASE_DUPLICATE  (1<<6)
 
 int parse_bam_readinfo(samfile_t *fp, 
                          bam1_t *bam, 
