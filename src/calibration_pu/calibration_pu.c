@@ -1371,7 +1371,7 @@ float GetPu (int n, int data[])
 
 
 static int updateSurvTable(Settings *s, SurvTable **sts, CifData *cif_data,
-                           size_t spot_num, int tile, int x, int y, int read, int *read_mismatch,
+                           size_t spot_num, int x, int y, int read, int *read_mismatch,
                            char *read_seq, int *read_qual, char *read_ref, samfile_t *fp, bam1_t *bam, FILE *fp_caldata) {
 
     int cstart = s->cstart[read];
@@ -1621,20 +1621,23 @@ SurvTable **makeSurvTable(Settings *s, samfile_t *fp_bam, int *bam_ntiles, size_
    	        size_t nelem = ntiles;
 	        void *pitile;
 
-            tile = bam_tile;
-            
-            // lookup itile from tile in tile array
-	        pitile = lfind(&tile, tiles, &nelem, sizeof(int), &int_cmp);
+            // lookup itile for bam_tile in tile array
+	        pitile = lfind(&bam_tile, tiles, &nelem, sizeof(int), &int_cmp);
 	        if (NULL == pitile) {
                 int read;
                 itile = ntiles;
                 ntiles++;
                 tiles = srealloc(tiles, ntiles * sizeof(int));
-                tiles[itile] = tile;
-                sts = srealloc(sts, ntiles * N_READS * sizeof(SurvTable *));
-                for(read=0;read<N_READS;read++)
-                    sts[itile*N_READS+read] = NULL;
-                if (!s->quiet) fprintf(stderr, "Processing tile %i (%lu)\n", tile, nreads);
+                tiles[itile] = bam_tile;
+                // if we are not filtering bad tiles we put everything in a single survival table
+                // so we only need to (re)allocate space if this is the first tile
+                if (ntiles == 1 || 0 != s->filter_bad_tiles) {
+                   sts = srealloc(sts, ntiles * N_READS * sizeof(SurvTable *));
+                    for(read=0;read<N_READS;read++)
+                        sts[itile*N_READS+read] = NULL;
+                }
+                if (!s->quiet) fprintf(stderr, "Processing tile %i (%lu)\n", bam_tile, nreads);
+                tile = bam_tile;
             }else{
                 if( NULL != s->intensity_dir ) {
                     fprintf(stderr,"ERROR: alignments are not sorted by tile.\n");
@@ -1643,14 +1646,19 @@ SurvTable **makeSurvTable(Settings *s, samfile_t *fp_bam, int *bam_ntiles, size_
                 itile = ((int*)pitile - tiles);
             }
             
+            // if we are not filtering bad tiles we put everything in a single survival table
+            if (0 == s->filter_bad_tiles) {
+                itile = 0;
+            }
+        
             if ( NULL != s->intensity_dir) {
                 /* Look for processed trace data */
                 if (NULL != cif_data) free_cif_data(cif_data);
-                cif_data = load_cif_data(lane, tile, "dif");
+                cif_data = load_cif_data(lane, bam_tile, "dif");
             
                 /* Check that we actually got some trace data */
                 if (NULL == cif_data) {
-                    fprintf(stderr, "Error: no intensity files found for lane %i tile %i.\n", lane, tile);
+                    fprintf(stderr, "Error: no intensity files found for lane %i tile %i.\n", bam_lane, bam_tile);
                     exit(EXIT_FAILURE);
                 }
 
@@ -1660,7 +1668,7 @@ SurvTable **makeSurvTable(Settings *s, samfile_t *fp_bam, int *bam_ntiles, size_
                     fprintf(stderr,
                             "ERROR: %lu intensity cycles for tile %i"
                             "with %i cycles expected.\n",
-                            cif_data->ncycles, tile, ncycles_firecrest);
+                            cif_data->ncycles, bam_tile, ncycles_firecrest);
                     exit(EXIT_FAILURE);
                 }
             }
@@ -1685,19 +1693,24 @@ SurvTable **makeSurvTable(Settings *s, samfile_t *fp_bam, int *bam_ntiles, size_
             int cycle;
             sts[itile*N_READS+bam_read] = (SurvTable *)smalloc(read_length * sizeof(SurvTable));
             for(cycle=0;cycle<read_length;cycle++)
-                initialiseSurvTable(s, sts[itile*N_READS+bam_read]+cycle, tile, bam_read, cycle);
+                initialiseSurvTable(s, sts[itile*N_READS+bam_read]+cycle, (0 == s->filter_bad_tiles ? -1 : bam_tile), bam_read, cycle);
         }
         
         if (0 != updateSurvTable(s, &sts[itile*N_READS], cif_data,
-                                 bam_offset, bam_tile, bam_x, bam_y, bam_read, bam_read_mismatch,
+                                 bam_offset, bam_x, bam_y, bam_read, bam_read_mismatch,
                                  bam_read_seq, bam_read_qual, bam_read_ref, fp_bam, bam, fp_caldata)) {
-            fprintf(stderr,"ERROR: updating quality values for tile %i.\n", tile);
+            fprintf(stderr,"ERROR: updating survival table for tile %i.\n", bam_tile);
             exit(EXIT_FAILURE);
         }
         
         nreads++;
     }
     
+    // if we are not filtering bad tiles we put everything in a single survival table
+    if (0 == s->filter_bad_tiles) {
+        ntiles = 1;
+    }
+
     for(itile=0;itile<ntiles;itile++)
         completeSurvTable(s, &sts[itile*N_READS], 0);
 
