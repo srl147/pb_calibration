@@ -1087,7 +1087,7 @@ SurvTable **makeSurvTable(Settings *s, samfile_t *fp_bam, int *bam_ntiles, size_
     
     // if we are not filtering bad tiles we put everything in a single survival table
     if (0 == s->filter_bad_tiles) {
-        ntiles = 1;
+        ntiles = min(ntiles, 1);
     }
 
     for(itile=0;itile<ntiles;itile++)
