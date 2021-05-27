@@ -483,7 +483,7 @@ static void outputErrorTable(Settings *s, int ntiles, SurvTable **sts)
     /* substitution RC */
 
     fprintf(fp, "# Substitution error table. Use `grep ^SET | cut -f 2-` to extract this part\n");
-    fprintf(fp, "# One row per predictor, columns read, predictor followed by substitution and count for 12 substitutions\n");
+    fprintf(fp, "# One row per read and quality value, columns read, quality value followed by substitution and count for 12 substitutions\n");
     for(read=0;read<N_READS;read++)
     {
         SurvTable *st = read_sts[read];
@@ -503,8 +503,9 @@ static void outputErrorTable(Settings *s, int ntiles, SurvTable **sts)
         }
     }
     
-    fprintf(fp, "# Mismatch substitutions high predictor. Use `grep ^RCH | cut -f 2-` to extract this part\n");
+    fprintf(fp, "# Mismatch substitutions high quality. Use `grep ^RCH | cut -f 2-` to extract this part\n");
     fprintf(fp, "# One row per read and cycle, columns read, cycle then substitution and count for 12 substitutions\n");
+    fprintf(fp, "# Followed by a single row with a total over all cycles for each read, columns are read, -1 then substitution and count for 12 substitutions\n");
     for(read=0;read<N_READS;read++)
     {
         if( NULL == sts[ntiles*N_READS+read]) continue;
@@ -536,8 +537,9 @@ static void outputErrorTable(Settings *s, int ntiles, SurvTable **sts)
         fprintf(fp, "\n");
     }
 
-    fprintf(fp, "# Mismatch substitutions low predictor. Use `grep ^RCL | cut -f 2-` to extract this part\n");
+    fprintf(fp, "# Mismatch substitutions low quality. Use `grep ^RCL | cut -f 2-` to extract this part\n");
     fprintf(fp, "# One row per read and cycle, columns read, cycle then substitution and count for 12 substitutions\n");
+    fprintf(fp, "# Followed by a single row with a total over all cycles for each read, columns are read, -1 then substitution and count for 12 substitutions\n");
     for(read=0;read<N_READS;read++)
     {
         if( NULL == sts[ntiles*N_READS+read]) continue;
@@ -571,7 +573,7 @@ static void outputErrorTable(Settings *s, int ntiles, SurvTable **sts)
     
     /* previous base PRC */
 
-    fprintf(fp, "# Effect of previous base high predictor. Use `grep ^PRCH | cut -f 2-` to extract this part\n");
+    fprintf(fp, "# Effect of previous base high quality. Use `grep ^PRCH | cut -f 2-` to extract this part\n");
     fprintf(fp, "# One row per read and previous base, columns read then previous base+substitution and count for 12 substitutions\n");
     for(read=0;read<N_READS;read++)
     {
@@ -613,7 +615,7 @@ static void outputErrorTable(Settings *s, int ntiles, SurvTable **sts)
         free(count);
     }
     
-    fprintf(fp, "# Effect of previous base low predictor. Use `grep ^PRCL | cut -f 2-` to extract this part\n");
+    fprintf(fp, "# Effect of previous base low quality. Use `grep ^PRCL | cut -f 2-` to extract this part\n");
     fprintf(fp, "# One row per read and previous base, columns read then previous base+substitution and count for 12 substitutions\n");
     for(read=0;read<N_READS;read++)
     {
@@ -657,8 +659,8 @@ static void outputErrorTable(Settings *s, int ntiles, SurvTable **sts)
     
     /* previous base + next base PRCN */
 
-    fprintf(fp, "# Effect of previous base and next base high predictor. Use `grep ^PRCNH | cut -f 2-` to extract this part\n");
-    fprintf(fp, "# One row per read and previous/next base, columns read then previous base+substitution+next base and count for 12 substitutions\n");
+    fprintf(fp, "# Effect of previous base and next base high quality. Use `grep ^PRCNH | cut -f 2-` to extract this part\n");
+    fprintf(fp, "# Sixteen rows per read, columns read then 12 of the possible previous base+substitution+next base combinations and the corresponding count\n");
     for(read=0;read<N_READS;read++)
     {
         /* read summary */
@@ -699,8 +701,8 @@ static void outputErrorTable(Settings *s, int ntiles, SurvTable **sts)
         free(count);
     }
     
-    fprintf(fp, "# Effect of previous base and next base low predictor. Use `grep ^PRCNL | cut -f 2-` to extract this part\n");
-    fprintf(fp, "# One row per read and previous/next base, columns read then previous base+substitution+next base and count for 12 substitutions\n");
+    fprintf(fp, "# Effect of previous base and next base low quality. Use `grep ^PRCNL | cut -f 2-` to extract this part\n");
+    fprintf(fp, "# Sixteen rows per read, columns read then 12 of the possible previous base+substitution+next base combinations and the corresponding count\n");
     for(read=0;read<N_READS;read++)
     {
         /* read summary */
